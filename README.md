@@ -56,6 +56,10 @@ A web application for users to create, share, and interact with content. Built w
 ## Live Demo
 [Check Out this Site Here](https://protfolio-542a8.web.app/)
 
+![1753812420106953932529896241442](https://github.com/user-attachments/assets/d9a41d15-f789-4062-8df0-17efafcf4d1b)
+
+![17538124846072749798930784669754](https://github.com/user-attachments/assets/f80ac0a8-2dd0-4ec8-a785-b891c69d3f0e)
+
 ## License
 
 MIT
