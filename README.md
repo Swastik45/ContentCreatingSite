@@ -21,7 +21,7 @@ A web application for users to create, share, and interact with content. Built w
 
 1. Clone the repository:
    ```
-   git clone https://github.com/<Your Username>/<Your Repository Name>.git
+   git clone https://github.com/Swastika45/ContentCreatingSite.git
    cd Content-Creating-Site
    ```
 
