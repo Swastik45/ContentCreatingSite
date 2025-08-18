@@ -256,9 +256,12 @@ const Profile = () => {
     const renderProfilePicture = () => {
         return (
             <div className="relative w-40 h-40 mx-auto mb-6 group">
-                <img 
-                    src={previewImage || defaultProfilePic} 
-                    alt="Profile" 
+                <img
+                    src={previewImage || defaultProfilePic}
+                    alt="Profile"
+                    width="256"
+                    height="256"
+                    loading="lazy"
                     className="w-full h-full rounded-full object-cover border-4 border-blue-500 transition-all group-hover:opacity-70"
                 />
                 <label 

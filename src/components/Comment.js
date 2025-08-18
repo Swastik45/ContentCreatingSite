@@ -3,277 +3,298 @@ import { db, auth } from '../firebase';
 import { 
     collection, 
     addDoc, 
-    getDocs, 
     query, 
     where, 
-    doc, 
-    getDoc, 
+    orderBy, 
+    onSnapshot,
+    serverTimestamp,
     deleteDoc,
-    updateDoc,
-    orderBy
+    doc,
+    updateDoc 
 } from 'firebase/firestore';
+import { toast } from 'react-toastify';
 import { 
+    FaComment, 
     FaTrash, 
-    FaReply, 
-    FaHeart,
-    FaRegHeart
+    FaEdit, 
+    FaPaperPlane, 
+    FaUserCircle,
+    FaTimes,
+    FaCheck 
 } from 'react-icons/fa';
 
-
-const CommentItem = ({ 
-    comment, 
-    currentUser, 
-    onReply, 
-    onDelete, 
-    onLike, 
-    likeInfo 
-}) => {
-    return (
-        <div className="bg-gray-100 rounded-lg p-3 mb-2">
-            <div className="flex justify-between items-start">
-                <div>
-                    <h4 className="font-semibold text-sm">{comment.username}</h4>
-                    <p className="text-gray-700">{comment.body}</p>
-                </div>
-                
-                {currentUser && (
-                    <div className="flex items-center space-x-2">
-                        {/* Like Button */}
-                        <button 
-                            onClick={() => onLike(comment.id)} 
-                            className="flex items-center text-sm"
-                        >
-                            {likeInfo.liked ? (
-                                <FaHeart className="text-red-500 mr-1" />
-                            ) : (
-                                <FaRegHeart className="text-gray-500 mr-1" />
-                            )}
-                            <span>{likeInfo.count}</span>
-                        </button>
-
-                        {/* Reply Button */}
-                        <button 
-                            onClick={() => onReply(comment)} 
-                            className="text-blue-500 hover:text-blue-700"
-                        >
-                            <FaReply />
-                        </button>
-
-                        {/* Delete Button (only for comment owner) */}
-                        {comment.creatorId === currentUser.uid && (
-                            <button 
-                                onClick={() => onDelete(comment.id)}
-                                className="text-red-500 hover:text-red-700"
-                            >
-                                <FaTrash />
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// Main Comment Component
 const Comment = ({ postId }) => {
-    // State Management
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
-    const [replyingTo, setReplyingTo] = useState(null);
-    const [likes, setLikes] = useState({});
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [editingCommentId, setEditingCommentId] = useState(null);
+    const [editText, setEditText] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
-    // Current User
     const currentUser = auth.currentUser;
 
-    // Fetch Comments
-    const fetchComments = async () => {
-        setLoading(true);
-        try {
-            const q = query(
-                collection(db, "comments"), 
-                where("postId", "==", postId),
-                orderBy("createdAt", "desc")
-            );
-            
-            const querySnapshot = await getDocs(q);
-            
-            const fetchedComments = await Promise.all(
-                querySnapshot.docs.map(async (docSnapshot) => {
-                    const commentData = { 
-                        id: docSnapshot.id, 
-                        ...docSnapshot.data() 
-                    };
-                    
-                    // Fetch username
-                    const userDoc = doc(db, "users", commentData.creatorId);
-                    const userSnapshot = await getDoc(userDoc);
-                    commentData.username = userSnapshot.exists() 
-                        ? userSnapshot.data().username 
-                        : 'Anonymous';
-                    
-                    return commentData;
-                })
-            );
-
-            // Initialize likes
-            const commentLikes = {};
-            fetchedComments.forEach(comment => {
-                commentLikes[comment.id] = {
-                    count: comment.likes?.length || 0,
-                    liked: comment.likes?.includes(currentUser?.uid) || false
-                };
-            });
-
-            setComments(fetchedComments);
-            setLikes(commentLikes);
-        } catch (err) {
-            setError('Failed to fetch comments');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Initial Comments Fetch
+    // Fetch comments for the post
     useEffect(() => {
-        fetchComments();
+        if (!postId) return;
+
+        const q = query(
+            collection(db, 'comments'),
+            where('postId', '==', postId),
+            orderBy('createdAt', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const commentsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate?.() || new Date()
+            }));
+            setComments(commentsData);
+            setLoading(false);
+        }, (error) => {
+            console.error('Error fetching comments:', error);
+            toast.error('Failed to load comments');
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
     }, [postId]);
 
-    // Add Comment
+    // Handle adding a new comment
     const handleAddComment = async (e) => {
         e.preventDefault();
-        if (!currentUser) {
-            setError('Please log in to comment');
+        
+        if (!newComment.trim()) {
+            toast.warning('Please enter a comment');
             return;
         }
 
+        if (!currentUser) {
+            toast.error('Please login to comment');
+            return;
+        }
+
+        setSubmitting(true);
+
         try {
-            const commentData = {
+            await addDoc(collection(db, 'comments'), {
                 postId,
-                body: newComment,
-                creatorId: currentUser.uid,
-                createdAt: new Date(),
-                parentCommentId: replyingTo?.id || null,
-                likes: []
-            };
+                text: newComment.trim(),
+                userId: currentUser.uid,
+                userName: currentUser.displayName || 'Anonymous',
+                userPhoto: currentUser.photoURL || null,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
 
-            const docRef = await addDoc(collection(db, "comments"), commentData);
-            
-            // Refresh comments
-            await fetchComments();
-            
-            // Reset form
             setNewComment('');
-            setReplyingTo(null);
-        } catch (err) {
-            setError('Failed to add comment');
-            console.error(err);
+            toast.success('Comment added successfully!');
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            toast.error('Failed to add comment');
+        } finally {
+            setSubmitting(false);
         }
     };
 
-    // Like Comment
-    const handleLikeComment = async (commentId) => {
-        if (!currentUser) {
-            setError('Please log in to like');
+    // Handle deleting a comment
+    const handleDeleteComment = async (commentId, commentUserId) => {
+        if (!currentUser || currentUser.uid !== commentUserId) {
+            toast.error('You can only delete your own comments');
+            return;
+        }
+
+        if (window.confirm('Are you sure you want to delete this comment?')) {
+            try {
+                await deleteDoc(doc(db, 'comments', commentId));
+                toast.success('Comment deleted successfully!');
+            } catch (error) {
+                console.error('Error deleting comment:', error);
+                toast.error('Failed to delete comment');
+            }
+        }
+    };
+
+    // Handle editing a comment
+    const handleEditComment = async (commentId) => {
+        if (!editText.trim()) {
+            toast.warning('Please enter a comment');
             return;
         }
 
         try {
-            const commentRef = doc(db, "comments", commentId);
-            const commentSnapshot = await getDoc(commentRef);
-            const currentLikes = commentSnapshot.data().likes || [];
+            await updateDoc(doc(db, 'comments', commentId), {
+                text: editText.trim(),
+                updatedAt: serverTimestamp()
+            });
 
-            const userId = currentUser.uid;
-            const updatedLikes = currentLikes.includes(userId)
-                ? currentLikes.filter(id => id !== userId)
-                : [...currentLikes, userId];
-
-            await updateDoc(commentRef, { likes: updatedLikes });
-            
-            // Refresh comments to update likes
-            await fetchComments();
-        } catch (err) {
-            setError('Failed to like comment');
-            console.error(err);
+            setEditingCommentId(null);
+            setEditText('');
+            toast.success('Comment updated successfully!');
+        } catch (error) {
+            console.error('Error updating comment:', error);
+            toast.error('Failed to update comment');
         }
     };
 
-    // Delete Comment
-    const handleDeleteComment = async (commentId) => {
-        try {
-            await deleteDoc(doc(db, "comments", commentId));
-            await fetchComments();
-        } catch (err) {
-            setError('Failed to delete comment');
-            console.error(err);
-        }
+    // Start editing a comment
+    const startEditing = (comment) => {
+        setEditingCommentId(comment.id);
+        setEditText(comment.text);
     };
+
+    // Cancel editing
+    const cancelEditing = () => {
+        setEditingCommentId(null);
+        setEditText('');
+    };
+
+    // Format relative time
+    const formatRelativeTime = (date) => {
+        const now = new Date();
+        const diffInSeconds = Math.floor((now - date) / 1000);
+        
+        if (diffInSeconds < 60) return 'just now';
+        if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+        if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+        if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+        
+        return date.toLocaleDateString();
+    };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
 
     return (
-        <div className="comment-section p-4">
-            {/* Error Display */}
-            {error && (
-                <div className="bg-red-100 text-red-700 p-2 rounded mb-4">
-                    {error}
-                </div>
-            )}
-
-            {/* Comment Input */}
-            {currentUser && (
-                <form onSubmit={handleAddComment} className="mb-4">
-                    {replyingTo && (
-                        <div className="text-sm text-gray-600 mb-2">
-                            Replying to: {replyingTo.username}
-                            <button 
-                                type="button" 
-                                onClick={() => setReplyingTo(null)}
-                                className="ml-2 text-red-500"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    )}
-                    <div className="flex">
-                        <input 
-                            type="text"
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {/* Comment Form */}
+            <div className="p-4 border-b border-gray-200">
+                <form onSubmit={handleAddComment} className="flex gap-3">
+                    <div className="flex-shrink-0">
+                        {currentUser?.photoURL ? (
+                            <img 
+                                src={currentUser.photoURL} 
+                                alt="Profile" 
+                                className="w-8 h-8 rounded-full object-cover"
+                            />
+                        ) : (
+                            <FaUserCircle className="w-8 h-8 text-gray-400" />
+                        )}
+                    </div>
+                    <div className="flex-grow">
+                        <textarea
                             value={newComment}
                             onChange={(e) => setNewComment(e.target.value)}
-                            placeholder={replyingTo 
-                                ? `Reply to ${replyingTo.username}` 
-                                : "Add a comment..."
-                            }
-                            className="flex-grow p-2 border rounded-l"
-                            required
+                            placeholder={currentUser ? "Add a comment..." : "Login to comment"}
+                            className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            rows="2"
+                            disabled={!currentUser}
                         />
-                        <button 
-                            type="submit" 
-                            className="bg-blue-500 text -white rounded-r p-2"
-                        >
-                            Submit
-                        </button>
+                        <div className="mt-2 flex justify-end">
+                            <button
+                                type="submit"
+                                disabled={!currentUser || submitting || !newComment.trim()}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <FaPaperPlane />
+                                {submitting ? 'Posting...' : 'Post'}
+                            </button>
+                        </div>
                     </div>
                 </form>
-            )}
-
-            {/* Loading Indicator */}
-            {loading && <div>Loading comments...</div>}
+            </div>
 
             {/* Comments List */}
-            <div className="comments-list">
-                {comments.map(comment => (
-                    <CommentItem 
-                        key={comment.id} 
-                        comment={comment} 
-                        currentUser ={currentUser } 
-                        onReply={setReplyingTo} 
-                        onDelete={handleDeleteComment} 
-                        onLike={handleLikeComment} 
-                        likeInfo={likes[comment.id] || { count: 0, liked: false }} 
-                    />
-                ))}
+            <div className="divide-y divide-gray-200">
+                {comments.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">
+                        <FaComment className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p>No comments yet. Be the first to comment!</p>
+                    </div>
+                ) : (
+                    comments.map((comment) => (
+                        <div key={comment.id} className="p-4">
+                            <div className="flex gap-3">
+                                <div className="flex-shrink-0">
+                                    {comment.userPhoto ? (
+                                        <img 
+                                            src={comment.userPhoto} 
+                                            alt={comment.userName} 
+                                            className="w-8 h-8 rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        <FaUserCircle className="w-8 h-8 text-gray-400" />
+                                    )}
+                                </div>
+                                <div className="flex-grow">
+                                    {editingCommentId === comment.id ? (
+                                        <div>
+                                            <textarea
+                                                value={editText}
+                                                onChange={(e) => setEditText(e.target.value)}
+                                                className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
+                                                rows="2"
+                                            />
+                                            <div className="mt-2 flex gap-2">
+                                                <button
+                                                    onClick={() => handleEditComment(comment.id)}
+                                                    className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                                >
+                                                    <FaCheck /> Save
+                                                </button>
+                                                <button
+                                                    onClick={cancelEditing}
+                                                    className="flex items-center gap-1 px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                                >
+                                                    <FaTimes /> Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="font-semibold text-gray-800">
+                                                        {comment.userName}
+                                                    </span>
+                                                    <span className="text-sm text-gray-500 ml-2">
+                                                        {formatRelativeTime(comment.createdAt)}
+                                                    </span>
+                                                </div>
+                                                {currentUser && currentUser.uid === comment.userId && (
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => startEditing(comment)}
+                                                            className="text-blue-500 hover:text-blue-700"
+                                                            title="Edit comment"
+                                                        >
+                                                            <FaEdit />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteComment(comment.id, comment.userId)}
+                                                            className="text-red-500 hover:text-red-700"
+                                                            title="Delete comment"
+                                                        >
+                                                            <FaTrash />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <p className="mt-1 text-gray-700 whitespace-pre-wrap">
+                                                {comment.text}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );

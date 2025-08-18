@@ -13,9 +13,11 @@ import {
 } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { Eye, EyeOff, User, Mail, Lock, UserPlus, LogIn } from 'lucide-react';
 
 const Auth = () => {
     const [isLogin, setIsLogin] = useState(true);
+    const [showPassword, setShowPassword] = useState(false);
     const [formData, setFormData] = useState({
         email: '', 
         password: '', 
@@ -24,6 +26,7 @@ const Auth = () => {
         lastName: ''
     });
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
     // Handle input changes
@@ -38,11 +41,13 @@ const Auth = () => {
 
     // Handle User Signup
     const handleSignup = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
+        setIsLoading(true);
         
         // Validate input fields
         if (!formData.email || !formData.password || !formData.username) {
             setError('Please fill in all required fields');
+            setIsLoading(false);
             return;
         }
 
@@ -72,19 +77,23 @@ const Auth = () => {
 
             toast.success('Account created successfully!');
             navigate('/');
+            setIsLoading(false);
         } catch (error) {
             console.error("Signup Error:", error);
             setError(handleFirebaseError(error));
+            setIsLoading(false);
         }
     };
 
     // Handle User Login
     const handleLogin = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
+        setIsLoading(true);
         
         // Validate input fields
         if (!formData.email || !formData.password) {
             setError('Please enter email and password');
+            setIsLoading(false);
             return;
         }
 
@@ -97,9 +106,11 @@ const Auth = () => {
             
             toast.success('Login successful!');
             navigate('/');
+            setIsLoading(false);
         } catch (error) {
             console.error("Login Error:", error);
             setError(handleFirebaseError(error));
+            setIsLoading(false);
         }
     };
 
@@ -134,104 +145,177 @@ const Auth = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-700">
-            <div className="bg-white p-8 rounded-xl shadow-2xl w-96">
-                <h2 className="text-2xl font-bold text-center mb-6">
-                    {isLogin ? 'Login' : 'Sign Up'}
-                </h2>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-4">
+            {/* Background decoration */}
+            <div className="absolute inset-0 opacity-20" style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+            }}></div>
+            
+            <div className="relative bg-white bg-opacity-10 backdrop-blur-xl p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white border-opacity-20">
+                {/* Header */}
+                <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg">
+                        {isLogin ? (
+                            <LogIn className="w-8 h-8 text-white" />
+                        ) : (
+                            <UserPlus className="w-8 h-8 text-white" />
+                        )}
+                    </div>
+                    <h2 className="text-3xl font-bold text-white mb-2">
+                        {isLogin ? 'Welcome Back' : 'Create Account'}
+                    </h2>
+                    <p className="text-white text-opacity-70">
+                        {isLogin 
+                            ? 'Sign in to your account to continue' 
+                            : 'Join us today and get started'}
+                    </p>
+                </div>
 
                 {/* Error Message */}
                 {error && (
-                    <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
-                        {error}
+                    <div className="bg-red-500 bg-opacity-20 backdrop-blur-sm text-red-100 p-4 rounded-2xl mb-6 border border-red-500 border-opacity-30 animate-pulse">
+                        <div className="flex items-center">
+                            <div className="w-2 h-2 bg-red-400 rounded-full mr-3"></div>
+                            {error}
+                        </div>
                     </div>
                 )}
 
-                <form onSubmit={isLogin ? handleLogin : handleSignup}>
+                <div className="space-y-5">
                     {/* Username Field (for Signup) */}
                     {!isLogin && (
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                name="username"
-                                placeholder="Username"
-                                value={formData.username}
-                                onChange={handleChange}
-                                className="w-full p-2 border rounded"
-                                required
-                            />
+                        <div className="group">
+                            <div className="relative">
+                                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-opacity-60 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
+                                <input
+                                    type="text"
+                                    name="username"
+                                    placeholder="Username"
+                                    value={formData.username}
+                                    onChange={handleChange}
+                                    className="w-full pl-12 pr-4 py-4 bg-white bg-opacity-10 backdrop-blur-sm text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 focus:border-blue-400 focus:border-opacity-50 transition-all duration-300"
+                                    required
+                                />
+                            </div>
                         </div>
                     )}
 
                     {/* Email Field */}
-                    <div className="mb-4">
-                        <input
-                            type="email"
-                            name="email"
-                            placeholder="Email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            className="w-full p-2 border rounded"
-                            required
-                        />
+                    <div className="group">
+                        <div className="relative">
+                            <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-opacity-60 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
+                            <input
+                                type="email"
+                                name="email"
+                                placeholder="Email address"
+                                value={formData.email}
+                                onChange={handleChange}
+                                className="w-full pl-12 pr-4 py-4 bg-white bg-opacity-10 backdrop-blur-sm text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 focus:border-blue-400 focus:border-opacity-50 transition-all duration-300"
+                                required
+                            />
+                        </div>
                     </div>
 
                     {/* Password Field */}
-                    <div className="mb-4">
-                        <input
-                            type="password"
-                            name="password"
-                            placeholder="Password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            className="w-full p-2 border rounded"
-                            required
-                        />
+                    <div className="group">
+                        <div className="relative">
+                            <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white text-opacity-60 w-5 h-5 group-focus-within:text-blue-400 transition-colors" />
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                name="password"
+                                placeholder="Password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                className="w-full pl-12 pr-12 py-4 bg-white bg-opacity-10 backdrop-blur-sm text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 focus:border-blue-400 focus:border-opacity-50 transition-all duration-300"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white text-opacity-60 hover:text-white transition-colors"
+                            >
+                                {showPassword ? (
+                                    <EyeOff className="w-5 h-5" />
+                                ) : (
+                                    <Eye className="w-5 h-5" />
+                                )}
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Optional: First and Last Name for Signup */}
+                    {/* First and Last Name for Signup */}
                     {!isLogin && (
-                        <div className="mb-4 flex space-x-2">
-                            <input
-                                type="text"
-                                name="firstName"
-                                placeholder="First Name"
-                                value={formData.firstName}
-                                onChange={handleChange}
-                                className="w-1/2 p-2 border rounded"
-                            />
-                            <input
-                                type="text"
-                                name="lastName"
-                                placeholder="Last Name"
-                                value={formData.lastName}
-                                onChange={handleChange}
-                                className="w-1/2 p-2 border rounded"
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="group">
+                                <input
+                                    type="text"
+                                    name="firstName"
+                                    placeholder="First Name"
+                                    value={formData.firstName}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-4 bg-white bg-opacity-10 backdrop-blur-sm text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 focus:border-blue-400 focus:border-opacity-50 transition-all duration-300"
+                                />
+                            </div>
+                            <div className="group">
+                                <input
+                                    type="text"
+                                    name="lastName"
+                                    placeholder="Last Name"
+                                    value={formData.lastName}
+                                    onChange={handleChange}
+                                    className="w-full px-4 py-4 bg-white bg-opacity-10 backdrop-blur-sm text-white placeholder-white placeholder-opacity-60 border border-white border-opacity-20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 focus:border-blue-400 focus:border-opacity-50 transition-all duration-300"
+                                />
+                            </div>
                         </div>
                     )}
 
                     {/* Submit Button */}
                     <button 
-                        type="submit" 
-                        className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+                        type="button" 
+                        disabled={isLoading}
+                        onClick={isLogin ? handleLogin : handleSignup}
+                        className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-4 rounded-2xl hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 transform transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-lg shadow-lg"
+                        style={{
+                            transform: isLoading ? 'none' : undefined
+                        }}
                     >
-                        {isLogin ? 'Login' : 'Sign Up'}
+                        {isLoading ? (
+                            <div className="flex items-center justify-center">
+                                <div className="w-6 h-6 border-2 border-white border-opacity-30 border-t-white rounded-full animate-spin mr-3"></div>
+                                {isLogin ? 'Signing In...' : 'Creating Account...'}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center">
+                                {isLogin ? (
+                                    <LogIn className="w-5 h-5 mr-2" />
+                                ) : (
+                                    <UserPlus className="w-5 h-5 mr-2" />
+                                )}
+                                {isLogin ? 'Sign In' : 'Create Account'}
+                            </div>
+                        )}
                     </button>
 
                     {/* Toggle Between Login and Signup */}
-                    <div className="text-center mt-4">
+                    <div className="text-center pt-4">
                         <button 
                             type="button"
                             onClick={() => setIsLogin(!isLogin)}
-                            className="text-blue-500 hover:underline"
+                            className="text-white text-opacity-80 hover:text-white transition-colors duration-300 font-medium"
                         >
                             {isLogin 
-                                ? 'Need an account? Sign Up' 
-                                : 'Already have an account? Login'}
+                                ? "Don't have an account? " 
+                                : 'Already have an account? '}
+                            <span className="text-blue-400 hover:text-blue-300 underline">
+                                {isLogin ? 'Sign Up' : 'Sign In'}
+                            </span>
                         </button>
                     </div>
-                </form>
+                </div>
+
+                {/* Decorative elements */}
+                <div className="absolute top-4 right-4 w-20 h-20 bg-gradient-to-r from-blue-500 from-opacity-20 to-purple-600 to-opacity-20 rounded-full blur-xl"></div>
+                <div className="absolute bottom-4 left-4 w-16 h-16 bg-gradient-to-r from-pink-500 from-opacity-20 to-blue-500 to-opacity-20 rounded-full blur-xl"></div>
             </div>
         </div>
     );

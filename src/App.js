@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { 
     BrowserRouter as Router, 
     Route, 
@@ -7,17 +7,16 @@ import {
 } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
-// Import components
 import Navbar from './components/Navbar';
-import HomePage from './components/HomePage';
-import MyContent from './components/MyContent';
-import PublicContent from './components/PublicContent';
-import Auth from './components/Auth';
-import CreateContent from './components/CreateContent';
-import Contact from './components/Contact';
-import Profile from './components/Profile'; 
-import { auth } from './firebase'; 
+import { auth } from './firebase';
+
+// Lazy load all major pages
+const HomePage = lazy(() => import('./components/HomePage'));
+const MyContent = lazy(() => import('./components/MyContent'));
+const PublicContent = lazy(() => import('./components/PublicContent'));
+const Auth = lazy(() => import('./components/Auth'));
+const CreateContent = lazy(() => import('./components/CreateContent'));
+const Profile = lazy(() => import('./components/Profile'));
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -25,33 +24,32 @@ const ProtectedRoute = ({ children }) => {
     return user ? children : <Navigate to="/auth" replace />;
 };
 
-const App = () => {
-    return (
-        <Router>
-            <div className="flex flex-col min-h-screen">
-                {/* ToastContainer for notifications */}
-                <ToastContainer 
-                    position="top-right"
-                    autoClose={3000}
-                    hideProgressBar={false}
-                    newestOnTop={false}
-                    closeOnClick
-                    rtl={false}
-                    pauseOnFocusLoss
-                    draggable
-                    pauseOnHover
-                />
+const App = () => (
+    <Router>
+        <div className="flex flex-col min-h-screen">
+            {/* ToastContainer for notifications */}
+            <ToastContainer 
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+            />
 
-                {/* Navbar - Fixed at the top */}
-                <Navbar />
+            {/* Navbar - Fixed at the top */}
+            <Navbar />
 
-                {/* Main content area with dynamic padding to account for fixed navbar */}
-                <main className="flex-grow mt-16">
+            {/* Main content area with dynamic padding to account for fixed navbar */}
+            <main className="flex-grow mt-16">
+                <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading...</div>}>
                     <Routes>
                         {/* Public Routes */}
                         <Route path="/" element={<HomePage />} />
                         <Route path="/auth" element={<Auth />} />
-                        <Route path="/contact" element={<Contact />} />
                         <Route path="/public-content" element={<PublicContent />} />
                         <Route path="/profile" element={
                             <ProtectedRoute>
@@ -89,10 +87,10 @@ const App = () => {
                             } 
                         />
                     </Routes>
-                </main>
-            </div>
-        </Router>
-    );
-};
+                </Suspense>
+            </main>
+        </div>
+    </Router>
+);
 
 export default App;

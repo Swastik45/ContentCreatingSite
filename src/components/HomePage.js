@@ -1,189 +1,226 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-    FaCode, 
-    FaLaptopCode, 
-    FaDatabase, 
-    FaReact, 
-    FaNodeJs, 
-    FaGithub, 
-    FaLinkedin, 
-    FaEnvelope 
+    FaEdit, 
+    FaTrash, 
+    FaEye, 
+    FaHeart, 
+    FaComment, 
+    FaCalendarAlt, 
+    FaCamera,
+    FaSearch,
+    FaFilter,
+    FaSpinner,
+    FaRocket,
+    FaStar,
+    FaPlay,
+    FaUserPlus
 } from 'react-icons/fa';
+import { 
+    Code, 
+    Server, 
+    Smartphone, 
+    Github, 
+    Linkedin, 
+    Mail, 
+    ArrowUp, 
+    ExternalLink,
+    Eye,
+    Rocket,
+    Star,
+    Heart,
+    Calendar,
+    Camera,
+    Play,
+    Zap,
+    Users,
+    TrendingUp
+} from 'lucide-react';
+import { db, auth } from '../firebase';
+import { 
+    collection, 
+    getDocs, 
+    query, 
+    orderBy, 
+    limit,
+    where
+} from 'firebase/firestore';
+import { toast } from 'react-toastify';
 
 const HomePage = () => {
-    // Skills data
-    const skills = [
-        { 
-            icon: <FaReact className="text-4xl text-blue-500" />, 
-            title: 'React', 
-            description: 'Building interactive and dynamic web applications' 
-        },
-        { 
-            icon: <FaNodeJs className="text-4xl text-green-500" />, 
-            title: 'Node.js', 
-            description: 'Server-side development and backend solutions' 
-        },
-        { 
-            icon: <FaDatabase className="text-4xl text-purple-500" />, 
-            title: 'Database', 
-            description: 'MongoDB, Firebase, and SQL database management' 
-        }
-    ];
+    const navigate = useNavigate();
+    const [featuredPosts, setFeaturedPosts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    // Projects data
-    const projects = [
-        {
-            title: 'Content Platform',
-            description: 'A full-stack content sharing and management application',
-            technologies: ['React', 'Firebase', 'Tailwind CSS'],
-            link: '/public-content'
-        },
-        {
-            title: 'Portfolio Website',
-            description: 'Personal portfolio showcasing skills and projects',
-            technologies: ['React', 'Tailwind CSS', 'Firebase'],
-            link: '#'
-        }
-    ];
+    // Fetch featured posts
+    const fetchFeaturedPosts = useCallback(async () => {
+        try {
+            setLoading(true);
+            const q = query(
+                collection(db, "content"),
+                orderBy("createdAt", "desc"),
+                limit(6)
+            );
 
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100">
-            {/* Hero Section */}
-            <section className="container mx-auto px-4 pt-24 pb-16 flex flex-col md:flex-row items-center">
-                <div className="md:w-1/2 text-center md:text-left">
-                    <h1 className="text-5xl font-bold text-gray-800 mb-4">
-                        Hi, I'm Swastik Paudel
+            const querySnapshot = await getDocs(q);
+            const posts = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate?.() || new Date()
+            }));
+
+            setFeaturedPosts(posts);
+            setError('');
+        } catch (error) {
+            console.error("Error fetching featured posts:", error);
+            setError("Failed to load featured content");
+            toast.error("Failed to load content");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchFeaturedPosts();
+    }, [fetchFeaturedPosts]);
+
+    // Hero Section
+    const HeroSection = () => (
+        <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 text-white">
+            <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+            <div className="relative container mx-auto px-4 py-20 lg:py-32">
+                <div className="max-w-4xl mx-auto text-center">
+                    <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+                        Welcome to{' '}
+                        <span className="bg-gradient-to-r from-yellow-400 to-pink-400 bg-clip-text text-transparent">
+                            Content Creator Hub
+                        </span>
                     </h1>
-                    <p className="text-2xl text-gray-600 mb-6">
-                        Full Stack Developer | React & Node.js Enthusiast
+                    <p className="text-xl md:text-2xl mb-8 opacity-90">
+                        Create, share, and discover amazing content. 
+                        Join a community of creators who are shaping the future of digital storytelling.
                     </p>
-                    <div className="flex justify-center md:justify-start space-x-4">
-                        <Link 
-                            to="/contact" 
-                            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition"
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                        <button
+                            onClick={() => navigate('/create-content')}
+                            className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors shadow-lg"
                         >
-                            Contact Me
-                        </Link>
-                        <a 
-                            href="/resume.pdf" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="border border-blue-600 text-blue-600 px-6 py-3 rounded-lg hover:bg-blue-50 transition"
+                            <FaRocket className="inline mr-2" />
+                            Start Creating
+                        </button>
+                        <button
+                            onClick={() => navigate('/public-content')}
+                            className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
                         >
-                            Download CV
-                        </a>
+                            <FaEye className="inline mr-2" />
+                            Explore Content
+                        </button>
                     </div>
                 </div>
-                <div className="md:w-1/2 mt-10 md:mt-0 flex justify-center">
-                <div className="w-64 h-64 rounded-full overflow-hidden shadow-2xl border-4 border-white">
-        <img 
-            src="/profile-pic.png"  
-            alt="Swastik Paudel" 
-            className="w-full h-full object-cover object-top"
-        />
-    </div>
-                </div>
-            </section>
 
-            {/* Skills Section */}
-            <section className="container mx-auto px-4 py-16 bg-white">
-                <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-                    My Skills
-                </h2>
+                {/* Floating Elements */}
+                <div className="absolute top-1/4 left-1/4 w-20 h-20 bg-white bg-opacity-10 rounded-full animate-pulse"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-16 h-16 bg-white bg-opacity-10 rounded-full animate-pulse delay-1000"></div>
+            </div>
+        </section>
+    );
+
+    // Features Section
+    const FeaturesSection = () => (
+        <section className="py-16 bg-gray-50">
+            <div className="container mx-auto px-4">
+                <div className="max-w-4xl mx-auto text-center mb-12">
+                    <h2 className="text-3xl font-bold text-gray-800 mb-4">
+                        Why Choose Our Platform?
+                    </h2>
+                    <p className="text-gray-600 text-lg">
+                        Everything you need to create, share, and grow your content
+                    </p>
+                </div>
+
                 <div className="grid md:grid-cols-3 gap-8">
-                    {skills.map((skill, index) => (
-                        <div 
-                            key={index} 
-                            className="bg-gray-50 p-6 rounded-lg text-center hover:shadow-xl transition"
-                        >
-                            <div className="flex justify-center mb-4">
-                                {skill.icon}
+                    {[
+                        {
+                            icon: <FaRocket className="w-8 h-8 text-blue-500" />,
+                            title: "Easy Creation",
+                            description: "Create stunning content with our intuitive editor and powerful tools."
+                        },
+                        {
+                            icon: <FaEye className="w-8 h-8 text-green-500" />,
+                            title: "Wide Reach",
+                            description: "Share your content with a global audience and build your following."
+                        },
+                        {
+                            icon: <FaHeart className="w-8 h-8 text-red-500" />,
+                            title: "Community Support",
+                            description: "Get feedback, support, and grow with our active creator community."
+                        }
+                    ].map((feature, index) => (
+                        <div key={index} className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4 mx-auto">
+                                {feature.icon}
                             </div>
-                            <h3 className="text-xl font-semibold mb-2">{skill.title}</h3>
-                            <p className="text-gray-600">{skill.description}</p>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2 text-center">
+                                {feature.title}
+                            </h3>
+                            <p className="text-gray-600 text-center">
+                                {feature.description}
+                            </p>
                         </div>
                     ))}
                 </div>
-            </section>
+            </div>
+        </section>
+    );
 
-            {/* Projects Section */}
-            <section className="container mx-auto px-4 py-16">
-                <h2 className="text-4xl font-bold text-center mb-12 text-gray-800">
-                    Recent Projects
+    // CTA Section
+    const CTASection = () => (
+        <section className="py-16 bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+            <div className="container mx-auto px-4 text-center">
+                <h2 className="text-3xl md:text-4xl font-bold mb-6">
+                    Ready to Start Creating?
                 </h2>
-                <div className="grid md:grid-cols-2 gap-8">
-                    {projects.map((project, index) => (
-                        <div 
-                            key={index} 
-                            className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition"
-                        >
-                            <div className="p-6">
-                                <h3 className="text-2xl font-semibold mb-3">{project.title}</h3>
-                                <p className="text-gray-600 mb-4">{project.description}</p>
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                    {project.technologies.map((tech, techIndex) => (
-                                        <span 
-                                            key={techIndex} 
-                                            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
-                                        >
-                                            {tech}
-                                        </span>
-                                    ))}
-                                </div>
-                                <Link 
-                                    to={project.link} 
-                                    className="text-blue-600 hover:underline"
-                                >
-                                    View Project
-                                </Link>
-                            </div>
-                        </div>
-                    ))}
+                <p className="text-xl mb-8 opacity-90">
+                    Join thousands of creators who are already sharing their stories with the world.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <button
+                        onClick={() => navigate('/create-content')}
+                        className="bg-white text-purple-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors shadow-lg"
+                    >
+                        <FaRocket className="inline mr-2" />
+                        Start Creating
+                    </button>
+                    <button
+                        onClick={() => navigate('/auth')}
+                        className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-purple-600 transition-colors"
+                    >
+                        <FaUserPlus className="inline mr-2" />
+                        Join Now
+                    </button>
                 </div>
-            </section>
+            </div>
+        </section>
+    );
 
-            {/* Contact Section */}
-            <section className="bg-blue-600 text-white py-16">
-                <div className="container mx-auto px-4 text-center">
-                    <h2 className="text-4xl font-bold mb-6">Let's Connect</h2>
-                    <p className="text-xl mb-8">
-                        Interested in collaborating or have a project in mind?
-                    </p>
-                    <div className="flex justify-center space-x-6">
-                        <a 
-                            href="https://github.com/Swastik45/ContentCreatingSite" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-4xl hover:text-gray-200 transition"
-                        >
-                            <FaGithub />
-                        </a>
-                        <a 
-                            href="https://www.linkedin.com/in/swastik-paudel-876925273/" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-4xl hover:text-gray-200 transition"
-                        >
-                            <FaLinkedin />
-                        </a>
-                        <a 
-                            href="mailto:psamarpaudel@example.com" 
-                            className="text-4xl hover:text-gray-200 transition"
-                        >
-                            <FaEnvelope />
-                        </a>
-                    </div>
-                </div>
-            </section>
-
-            {/* Footer */}
-            <footer className="bg-gray-800 text-white py-6">
-                <div className="container mx-auto px-4 text-center">
-                    <p>&copy; {new Date().getFullYear()} Swastik Paudel. All rights reserved.</p>
-                </div> </footer>
+    // Loading State
+    if (loading) {
+        return (
+            <div className="flex flex-col justify-center items-center h-screen bg-gray-50">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                <p className="text-gray-600 text-lg">Loading homepage...</p>
             </div>
         );
-    };
+    }
 
-    export default HomePage;
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <HeroSection />
+            <FeaturesSection />
+            <CTASection />
+        </div>
+    );
+};
+
+export default HomePage;
