@@ -1,26 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '../firebase';
-import { 
-    collection, 
-    addDoc, 
-    query, 
-    where, 
-    orderBy, 
+import {
+    collection,
+    addDoc,
+    query,
+    where,
+    orderBy,
     onSnapshot,
     serverTimestamp,
     deleteDoc,
     doc,
-    updateDoc 
+    updateDoc,
+    getDocs,
+    setDoc
 } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import { 
-    FaComment, 
-    FaTrash, 
-    FaEdit, 
-    FaPaperPlane, 
+import {
+    FaComment,
+    FaTrash,
+    FaEdit,
+    FaPaperPlane,
     FaUserCircle,
     FaTimes,
-    FaCheck 
+    FaCheck,
+    FaReply,
+    FaHeart,
+    FaRegHeart
 } from 'react-icons/fa';
 
 const Comment = ({ postId }) => {
@@ -30,6 +35,9 @@ const Comment = ({ postId }) => {
     const [editingCommentId, setEditingCommentId] = useState(null);
     const [editText, setEditText] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [replyingTo, setReplyingTo] = useState(null);
+    const [replyText, setReplyText] = useState('');
+    const [likes, setLikes] = useState({});
 
     const currentUser = auth.currentUser;
 
@@ -43,12 +51,24 @@ const Comment = ({ postId }) => {
             orderBy('createdAt', 'desc')
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
             const commentsData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
                 createdAt: doc.data().createdAt?.toDate?.() || new Date()
             }));
+
+            // Fetch likes for each comment
+            const likesData = {};
+            for (const comment of commentsData) {
+                const likesQuery = query(collection(db, 'comments', comment.id, 'likes'));
+                const likesSnapshot = await getDocs(likesQuery);
+                likesData[comment.id] = {
+                    count: likesSnapshot.size,
+                    liked: likesSnapshot.docs.some(doc => doc.id === currentUser?.uid)
+                };
+            }
+            setLikes(likesData);
             setComments(commentsData);
             setLoading(false);
         }, (error) => {
@@ -58,7 +78,7 @@ const Comment = ({ postId }) => {
         });
 
         return () => unsubscribe();
-    }, [postId]);
+    }, [postId, currentUser]);
 
     // Handle adding a new comment
     const handleAddComment = async (e) => {
@@ -134,6 +154,75 @@ const Comment = ({ postId }) => {
         } catch (error) {
             console.error('Error updating comment:', error);
             toast.error('Failed to update comment');
+        }
+    };
+
+    // Handle adding a reply
+    const handleAddReply = async (e, parentId) => {
+        e.preventDefault();
+
+        if (!replyText.trim()) {
+            toast.warning('Please enter a reply');
+            return;
+        }
+
+        if (!currentUser) {
+            toast.error('Please login to reply');
+            return;
+        }
+
+        try {
+            await addDoc(collection(db, 'comments'), {
+                postId,
+                parentId,
+                text: replyText.trim(),
+                userId: currentUser.uid,
+                userName: currentUser.displayName || 'Anonymous',
+                userPhoto: currentUser.photoURL || null,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            setReplyingTo(null);
+            setReplyText('');
+            toast.success('Reply added successfully!');
+        } catch (error) {
+            console.error('Error adding reply:', error);
+            toast.error('Failed to add reply');
+        }
+    };
+
+    // Handle toggling like
+    const handleToggleLike = async (commentId) => {
+        if (!currentUser) {
+            toast.error('Please login to like comments');
+            return;
+        }
+
+        const likeRef = doc(db, 'comments', commentId, 'likes', currentUser.uid);
+        const isLiked = likes[commentId]?.liked;
+
+        try {
+            if (isLiked) {
+                await deleteDoc(likeRef);
+            } else {
+                await setDoc(likeRef, {
+                    userId: currentUser.uid,
+                    createdAt: serverTimestamp()
+                });
+            }
+
+            // Update local state
+            setLikes(prev => ({
+                ...prev,
+                [commentId]: {
+                    count: isLiked ? prev[commentId].count - 1 : prev[commentId].count + 1,
+                    liked: !isLiked
+                }
+            }));
+        } catch (error) {
+            console.error('Error toggling like:', error);
+            toast.error('Failed to toggle like');
         }
     };
 
@@ -217,85 +306,220 @@ const Comment = ({ postId }) => {
                         <p>No comments yet. Be the first to comment!</p>
                     </div>
                 ) : (
-                    comments.map((comment) => (
-                        <div key={comment.id} className="p-4">
-                            <div className="flex gap-3">
-                                <div className="flex-shrink-0">
-                                    {comment.userPhoto ? (
-                                        <img 
-                                            src={comment.userPhoto} 
-                                            alt={comment.userName} 
-                                            className="w-8 h-8 rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        <FaUserCircle className="w-8 h-8 text-gray-400" />
-                                    )}
+                    comments
+                        .filter(comment => !comment.parentId) // Only top-level comments
+                        .map((comment) => (
+                            <CommentItem
+                                key={comment.id}
+                                comment={comment}
+                                allComments={comments}
+                                editingCommentId={editingCommentId}
+                                editText={editText}
+                                setEditText={setEditText}
+                                handleEditComment={handleEditComment}
+                                handleDeleteComment={handleDeleteComment}
+                                startEditing={startEditing}
+                                cancelEditing={cancelEditing}
+                                formatRelativeTime={formatRelativeTime}
+                                replyingTo={replyingTo}
+                                setReplyingTo={setReplyingTo}
+                                replyText={replyText}
+                                setReplyText={setReplyText}
+                                handleAddReply={handleAddReply}
+                                handleToggleLike={handleToggleLike}
+                                likes={likes}
+                                currentUser={currentUser}
+                            />
+                        ))
+                )}
+            </div>
+        </div>
+    );
+};
+
+const CommentItem = ({
+    comment,
+    allComments,
+    editingCommentId,
+    editText,
+    setEditText,
+    handleEditComment,
+    handleDeleteComment,
+    startEditing,
+    cancelEditing,
+    formatRelativeTime,
+    replyingTo,
+    setReplyingTo,
+    replyText,
+    setReplyText,
+    handleAddReply,
+    handleToggleLike,
+    likes,
+    currentUser
+}) => {
+    const replies = allComments.filter(c => c.parentId === comment.id);
+
+    return (
+        <div className="p-4">
+            <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                    {comment.userPhoto ? (
+                        <img
+                            src={comment.userPhoto}
+                            alt={comment.userName}
+                            className="w-8 h-8 rounded-full object-cover"
+                        />
+                    ) : (
+                        <FaUserCircle className="w-8 h-8 text-gray-400" />
+                    )}
+                </div>
+                <div className="flex-grow">
+                    {editingCommentId === comment.id ? (
+                        <div>
+                            <textarea
+                                value={editText}
+                                onChange={(e) => setEditText(e.target.value)}
+                                className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
+                                rows="2"
+                            />
+                            <div className="mt-2 flex gap-2">
+                                <button
+                                    onClick={() => handleEditComment(comment.id)}
+                                    className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                >
+                                    <FaCheck /> Save
+                                </button>
+                                <button
+                                    onClick={cancelEditing}
+                                    className="flex items-center gap-1 px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                >
+                                    <FaTimes /> Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <span className="font-semibold text-gray-800">
+                                        {comment.userName}
+                                    </span>
+                                    <span className="text-sm text-gray-500 ml-2">
+                                        {formatRelativeTime(comment.createdAt)}
+                                    </span>
                                 </div>
-                                <div className="flex-grow">
-                                    {editingCommentId === comment.id ? (
-                                        <div>
+                                {currentUser && currentUser.uid === comment.userId && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => startEditing(comment)}
+                                            className="text-blue-500 hover:text-blue-700"
+                                            title="Edit comment"
+                                        >
+                                            <FaEdit />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteComment(comment.id, comment.userId)}
+                                            className="text-red-500 hover:text-red-700"
+                                            title="Delete comment"
+                                        >
+                                            <FaTrash />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            <p className="mt-1 text-gray-700 whitespace-pre-wrap">
+                                {comment.text}
+                            </p>
+                            <div className="mt-2 flex items-center gap-4">
+                                <button
+                                    onClick={() => handleToggleLike(comment.id)}
+                                    className={`flex items-center gap-1 text-sm ${
+                                        likes[comment.id]?.liked ? 'text-red-500' : 'text-gray-500'
+                                    } hover:text-red-500`}
+                                >
+                                    {likes[comment.id]?.liked ? <FaHeart /> : <FaRegHeart />}
+                                    {likes[comment.id]?.count || 0}
+                                </button>
+                                <button
+                                    onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-500"
+                                >
+                                    <FaReply /> Reply
+                                </button>
+                            </div>
+                            {replyingTo === comment.id && (
+                                <form onSubmit={(e) => handleAddReply(e, comment.id)} className="mt-3 ml-8">
+                                    <div className="flex gap-2">
+                                        <div className="flex-shrink-0">
+                                            {currentUser?.photoURL ? (
+                                                <img
+                                                    src={currentUser.photoURL}
+                                                    alt="Profile"
+                                                    className="w-6 h-6 rounded-full object-cover"
+                                                />
+                                            ) : (
+                                                <FaUserCircle className="w-6 h-6 text-gray-400" />
+                                            )}
+                                        </div>
+                                        <div className="flex-grow">
                                             <textarea
-                                                value={editText}
-                                                onChange={(e) => setEditText(e.target.value)}
+                                                value={replyText}
+                                                onChange={(e) => setReplyText(e.target.value)}
+                                                placeholder="Write a reply..."
                                                 className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
                                                 rows="2"
                                             />
-                                            <div className="mt-2 flex gap-2">
+                                            <div className="mt-2 flex justify-end gap-2">
                                                 <button
-                                                    onClick={() => handleEditComment(comment.id)}
-                                                    className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                                    type="button"
+                                                    onClick={() => setReplyingTo(null)}
+                                                    className="px-3 py-1 text-gray-500 hover:text-gray-700"
                                                 >
-                                                    <FaCheck /> Save
+                                                    Cancel
                                                 </button>
                                                 <button
-                                                    onClick={cancelEditing}
-                                                    className="flex items-center gap-1 px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                                                    type="submit"
+                                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                                                 >
-                                                    <FaTimes /> Cancel
+                                                    Reply
                                                 </button>
                                             </div>
                                         </div>
-                                    ) : (
-                                        <div>
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="font-semibold text-gray-800">
-                                                        {comment.userName}
-                                                    </span>
-                                                    <span className="text-sm text-gray-500 ml-2">
-                                                        {formatRelativeTime(comment.createdAt)}
-                                                    </span>
-                                                </div>
-                                                {currentUser && currentUser.uid === comment.userId && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => startEditing(comment)}
-                                                            className="text-blue-500 hover:text-blue-700"
-                                                            title="Edit comment"
-                                                        >
-                                                            <FaEdit />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteComment(comment.id, comment.userId)}
-                                                            className="text-red-500 hover:text-red-700"
-                                                            title="Delete comment"
-                                                        >
-                                                            <FaTrash />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <p className="mt-1 text-gray-700 whitespace-pre-wrap">
-                                                {comment.text}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                                    </div>
+                                </form>
+                            )}
                         </div>
-                    ))
-                )}
+                    )}
+                </div>
             </div>
+            {/* Render replies */}
+            {replies.length > 0 && (
+                <div className="ml-8 mt-4 space-y-4">
+                    {replies.map((reply) => (
+                        <CommentItem
+                            key={reply.id}
+                            comment={reply}
+                            allComments={allComments}
+                            editingCommentId={editingCommentId}
+                            editText={editText}
+                            setEditText={setEditText}
+                            handleEditComment={handleEditComment}
+                            handleDeleteComment={handleDeleteComment}
+                            startEditing={startEditing}
+                            cancelEditing={cancelEditing}
+                            formatRelativeTime={formatRelativeTime}
+                            replyingTo={replyingTo}
+                            setReplyingTo={setReplyingTo}
+                            replyText={replyText}
+                            setReplyText={setReplyText}
+                            handleAddReply={handleAddReply}
+                            handleToggleLike={handleToggleLike}
+                            likes={likes}
+                            currentUser={currentUser}
+                        />
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

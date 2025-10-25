@@ -1,11 +1,13 @@
 {
-  "name": "my-portfolio",
+  "name": "my-content",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@tiptap/react": "^3.7.2",
+    "@tiptap/starter-kit": "^3.7.2",
     "buffer": "^6.0.3",
     "dotenv": "^17.2.1",
     "firebase": "^11.0.2",
