@@ -2,7 +2,7 @@
 
 A full-stack web application where users can create, share, and interact with content. Built using **React** and **Firebase** (Firestore, Auth, Storage). Features include user authentication, content management, media uploads, user interactions (likes, comments, replies), and responsive design.
 
-🔗 **[Live Demo]( https://content-creating-platform.web.app   )**
+**[Live Demo]( https://content-creating-platform.web.app   )**
 
 ## ✨ Features
 
